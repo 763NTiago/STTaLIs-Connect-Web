@@ -1,86 +1,160 @@
-import { useEffect, useState } from 'react';
-import type { ServiceResponseDTO } from './types/Service';
+import { useEffect, useRef } from 'react'
+import './App.scss'
 
 export default function App() {
-  /**
-   * HOOKS: Gerenciadores de Estado no React
-   * 'services' guarda o array de serviços vindo do backend.
-   * 'loading' gerencia a tela de "Carregando...".
-   */
-  const [services, setServices] = useState<ServiceResponseDTO[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const API_URL = import.meta.env.VITE_API_URL;
+  const year = new Date().getFullYear()
+  const canvasRef = useRef<HTMLCanvasElement>(null)
 
-  /**
-   * useEffect com array vazio [] executa a busca APENAS UMA VEZ
-   * quando o componente é montado na tela.
-   */
   useEffect(() => {
-    const fetchServices = async () => {
-      try {
-        const response = await fetch(`${API_URL}/services`);
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
 
-        if (!response.ok) {
-          throw new Error('Falha ao comunicar com a API FronteirApp');
-        }
+    canvas.width = window.innerWidth
+    canvas.height = window.innerHeight
 
-        const data = await response.json();
-        setServices(data);
-      } catch (error) {
-        console.error('Erro:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    const particles: { x: number; y: number; vx: number; vy: number; size: number; alpha: number }[] = []
 
-    void fetchServices();
-  }, [API_URL]);
-
-  /**
-   * FUNÇÃO CORE: Contexto Binacional.
-   * Formata os valores monetários dependendo da moeda.
-   */
-  const formatCurrency = (price: number, currency: 'BRL' | 'PYG') => {
-    if (currency === 'PYG') {
-      // Guarani Paraguaio: Sem casas decimais padrão.
-      return `₲ ${price.toLocaleString('es-PY')}`;
+    for (let i = 0; i < 60; i++) {
+      particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: (Math.random() - 0.5) * 0.4,
+        size: Math.random() * 2 + 0.5,
+        alpha: Math.random() * 0.4 + 0.1,
+      })
     }
 
-    // Real Brasileiro: Obriga mostrar centavos.
-    return `R$ ${price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
-  };
+    let animId: number
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      particles.forEach(p => {
+        p.x += p.vx
+        p.y += p.vy
+        if (p.x < 0 || p.x > canvas.width) p.vx *= -1
+        if (p.y < 0 || p.y > canvas.height) p.vy *= -1
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(0, 212, 255, ${p.alpha})`
+        ctx.fill()
+      })
 
-  if (loading) {
-    return (
-      <div style={{ padding: '20px' }}>
-        <h2>Carregando serviços da fronteira...</h2>
-      </div>
-    );
-  }
+      particles.forEach((p, i) => {
+        particles.slice(i + 1).forEach(p2 => {
+          const dx = p.x - p2.x
+          const dy = p.y - p2.y
+          const dist = Math.sqrt(dx * dx + dy * dy)
+          if (dist < 120) {
+            ctx.beginPath()
+            ctx.moveTo(p.x, p.y)
+            ctx.lineTo(p2.x, p2.y)
+            ctx.strokeStyle = `rgba(0, 212, 255, ${0.08 * (1 - dist / 120)})`
+            ctx.lineWidth = 0.5
+            ctx.stroke()
+          }
+        })
+      })
+
+      animId = requestAnimationFrame(draw)
+    }
+    draw()
+
+    const handleResize = () => {
+      canvas.width = window.innerWidth
+      canvas.height = window.innerHeight
+    }
+    window.addEventListener('resize', handleResize)
+
+    return () => {
+      cancelAnimationFrame(animId)
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [])
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', padding: '20px', fontFamily: 'sans-serif' }}>
-      <header style={{ borderBottom: '2px solid #0ea5e9', paddingBottom: '10px', marginBottom: '20px' }}>
-        <h1 style={{ color: '#0f172a', margin: 0 }}>FronteirApp - Serviços Locais</h1>
-        <p style={{ color: '#64748b', margin: '5px 0' }}>Conectando Ponta Porã e Pedro Juan Caballero</p>
-      </header>
+    <div className="app">
+      <canvas ref={canvasRef} className="particles" />
 
-      <div style={{ display: 'grid', gap: '15px' }}>
-        {services.length === 0 ? (
-          <p>Nenhum serviço encontrado no momento.</p>
-        ) : (
-          services.map(service => (
-            <article key={service.id} style={{ border: '1px solid #cbd5e1', borderRadius: '8px', padding: '15px' }}>
-              <h3 style={{ margin: '0 0 10px 0', color: '#0369a1' }}>{service.title}</h3>
-              <p style={{ margin: '0 0 15px 0' }}>{service.description}</p>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc', padding: '10px', borderRadius: '4px' }}>
-                <strong style={{ fontSize: '1.2em', color: '#16a34a' }}>{formatCurrency(service.price, service.currency)}</strong>
-                <span style={{ fontSize: '0.9em', color: '#64748b', backgroundColor: '#e2e8f0', padding: '4px 8px', borderRadius: '12px' }}>{service.category}</span>
-              </div>
-            </article>
-          ))
-        )}
-      </div>
+      <main className="hero">
+        <div className="logo-wrapper">
+          <div className="logo-letters">
+            <span className="letter s">S</span>
+            <span className="letter t1">T</span>
+            <span className="letter t2">T</span>
+            <span className="letter a">a</span>
+            <span className="letter l">L</span>
+            <span className="letter i">I</span>
+            <span className="letter s2">s</span>
+          </div>
+          <div className="logo-sub">TECH SOLUTIONS</div>
+        </div>
+
+        <div className="product-name">
+          <span className="product-label">apresenta</span>
+          <h1 className="product-title">
+            STTaLIs <span className="highlight">Connect</span>
+          </h1>
+        </div>
+
+        <div className="coming-soon">
+          <span className="badge">Em breve</span>
+          <p className="tagline">
+            Conectando a fronteira.<br />
+            <span>Serviços locais, alcance global.</span>
+          </p>
+        </div>
+
+        <div className="notify">
+          <p className="notify-text">Marketplace binacional de serviços</p>
+          <p className="notify-sub">Ponta Porã (BR) · Pedro Juan Caballero (PY)</p>
+        </div>
+      </main>
+
+      <footer className="footer">
+        <div className="footer-inner">
+          <div className="footer-brand">
+            <span className="footer-logo">STTaLIs</span>
+            <span className="footer-company">Tech Solutions</span>
+          </div>
+
+          <div className="footer-info">
+            <div className="footer-item">
+              <span className="footer-label">Cidade</span>
+              <span className="footer-value">Ponta Porã · MS · Brasil</span>
+            </div>
+            <div className="footer-item">
+              <span className="footer-label">Fronteira</span>
+              <span className="footer-value">Brasil · Paraguai</span>
+            </div>
+            <div className="footer-item">
+              <span className="footer-label">Email</span>
+              <a href="mailto:sttalistechsolution@gmail.com" className="footer-link">
+                sttalistechsolution@gmail.com
+              </a>
+            </div>
+            <div className="footer-item">
+              <span className="footer-label">WhatsApp</span>
+              <a href="https://wa.me/5567991813023" className="footer-link" target="_blank" rel="noreferrer">
+                +55 67 99181-3023
+              </a>
+            </div>
+            <div className="footer-item">
+              <span className="footer-label">Site</span>
+              <a href="https://sttalis.com.br" className="footer-link" target="_blank" rel="noreferrer">
+                sttalis.com.br
+              </a>
+            </div>
+          </div>
+
+          <div className="footer-bottom">
+            <span>© {year} STTaLIs Tech Solutions · Todos os direitos reservados</span>
+            <span className="footer-ptin">              
+            </span>
+          </div>
+        </div>
+      </footer>
     </div>
-  );
+  )
 }
